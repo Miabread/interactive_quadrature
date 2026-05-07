@@ -1,5 +1,5 @@
-use egui::{CentralPanel, ComboBox, MenuBar, Panel, widgets};
-use egui_plot::{Legend, Line, Plot, PlotPoints, Points, Span};
+use egui::{CentralPanel, Color32, ComboBox, MenuBar, Panel, widgets};
+use egui_plot::{Legend, Line, Plot, PlotPoint, PlotPoints};
 use meval::Expr;
 use serde::{Deserialize, Serialize};
 
@@ -85,7 +85,8 @@ impl eframe::App for App {
         });
 
         CentralPanel::default().show_inside(ui, |ui| {
-            Plot::new("central_plot")
+            let mut circles = Vec::new();
+            let response = Plot::new("central_plot")
                 .legend(Legend::default())
                 .data_aspect(1.0)
                 .show(ui, |ui| {
@@ -101,30 +102,24 @@ impl eframe::App for App {
                         self.selected
                             .eval(self.a, self.b, expr.clone().bind("x").unwrap());
 
-                    for (i, slice) in slices.iter().enumerate() {
-                        // ui.line(
-                        //     Line::new(
-                        //         format!("{i}",),
-                        //         PlotPoints::new(vec![
-                        //             [slice.0, 1.0],
-                        //             [slice.0, 0.0],
-                        //             [slice.0, -1.0],
-                        //         ]),
-                        //     )
-                        //     .name(format!("{:.4}", slice.1)),
-                        // );
-
-                        let start = slice.0;
-                        let end = slices.get(i + 1).map(|e| e.0).unwrap_or(self.b);
-
-                        ui.span(Span::new(format!("{:.4}", slice.1), start..=end));
+                    for slice in &slices {
+                        circles.push(egui::Shape::circle_filled(
+                            ui.screen_from_plot(PlotPoint::new(slice[0], func(slice[0]))),
+                            10.0, // set radius of special points to be visible
+                            Color32::ORANGE,
+                        ));
                     }
 
                     ui.line(
                         Line::new("func", PlotPoints::from_explicit_callback(func, .., 100))
-                            .name(format!("{:.4}", slices.iter().map(|e| e.1).sum::<f64>())),
+                            .name(format!("{:.4}", slices.iter().map(|e| e[1]).sum::<f64>())),
                     );
-                });
+                })
+                .response;
+            response
+                .ctx
+                .layer_painter(response.layer_id)
+                .extend(circles);
         });
     }
 }
@@ -143,23 +138,23 @@ impl Algorithm {
         }
     }
 
-    fn eval(&self, a: f64, b: f64, f: impl Fn(f64) -> f64) -> Vec<(f64, f64)> {
-        let woof = |co: &[f64], all_co: f64| -> Vec<_> {
-            let n = co.len() as f64;
+    fn eval(&self, a: f64, b: f64, f: impl Fn(f64) -> f64) -> Vec<[f64; 2]> {
+        let newton = |co: &[f64], all_co: f64| -> Vec<_> {
+            let n = co.len() as f64 - 1.0;
             co.iter()
                 .enumerate()
                 .map(|(i, &co)| {
                     let i = i as f64;
                     let h = (b - a) / n;
-                    (a + i * h, all_co * h * f(a + i * h) * co)
+                    [a + i * h, all_co * h * f(a + i * h) * co]
                 })
                 .collect()
         };
 
         match self {
-            Algorithm::Trapezoidal => woof(&[1.0, 1.0], 0.5),
+            Algorithm::Trapezoidal => newton(&[1.0, 1.0], 0.5),
 
-            Algorithm::Simpson => woof(&[1.0, 4.0, 1.0], 1.0 / 1.3),
+            Algorithm::Simpson => newton(&[1.0, 4.0, 1.0], 1.0 / 1.3),
         }
     }
 }
