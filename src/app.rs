@@ -1,25 +1,30 @@
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
-    // Example stuff:
-    label: String,
+use egui::{CentralPanel, ComboBox, MenuBar, Panel, widgets};
+use egui_plot::{Legend, Line, Plot, PlotPoints, Points, Span};
+use meval::Expr;
+use serde::{Deserialize, Serialize};
 
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
+/// We derive Deserialize/Serialize so we can persist app state on shutdown.
+#[derive(Deserialize, Serialize)]
+#[serde(default)] // if we add new fields, give them default values when deserializing old state
+pub struct App {
+    expr: String,
+    a: f64,
+    b: f64,
+    selected: Algorithm,
 }
 
-impl Default for TemplateApp {
+impl Default for App {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
+            expr: "x^2".to_owned(),
+            a: -1.0,
+            b: 1.0,
+            selected: Algorithm::Trapezoidal,
         }
     }
 }
 
-impl TemplateApp {
+impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -35,7 +40,7 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for App {
     /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
@@ -46,64 +51,115 @@ impl eframe::App for TemplateApp {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        egui::Panel::top("top_panel").show_inside(ui, |ui| {
-            // The top panel is often a good place for a menu bar:
-
-            egui::MenuBar::new().ui(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ui.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-
-                egui::widgets::global_theme_preference_buttons(ui);
+        Panel::top("top_panel").show_inside(ui, |ui| {
+            MenuBar::new().ui(ui, |ui| {
+                widgets::global_theme_preference_buttons(ui);
             });
         });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+        Panel::left("left_panel").show_inside(ui, |ui| {
+            ui.heading("Interactive Quadrature");
+            ui.spacing();
 
             ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
+                ui.label("Expr: ");
+                ui.text_edit_singleline(&mut self.expr);
             });
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
-
-            ui.separator();
-
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
+            ui.horizontal(|ui| {
+                ui.label("a: ");
+                ui.add(egui::DragValue::new(&mut self.a).speed(0.1));
+                ui.label("b: ");
+                ui.add(egui::DragValue::new(&mut self.b).speed(0.1));
             });
+
+            ComboBox::from_label("Algorithm")
+                .selected_text(self.selected.text())
+                .show_ui(ui, |ui| {
+                    use Algorithm::*;
+                    for algo in [Trapezoidal, Simpson] {
+                        let text = algo.text();
+                        ui.selectable_value(&mut self.selected, algo, text);
+                    }
+                });
+        });
+
+        CentralPanel::default().show_inside(ui, |ui| {
+            Plot::new("central_plot")
+                .legend(Legend::default())
+                .data_aspect(1.0)
+                .show(ui, |ui| {
+                    let Ok(expr) = self.expr.parse::<Expr>() else {
+                        return;
+                    };
+
+                    let Ok(func) = expr.clone().bind("x") else {
+                        return;
+                    };
+
+                    let slices =
+                        self.selected
+                            .eval(self.a, self.b, expr.clone().bind("x").unwrap());
+
+                    for (i, slice) in slices.iter().enumerate() {
+                        // ui.line(
+                        //     Line::new(
+                        //         format!("{i}",),
+                        //         PlotPoints::new(vec![
+                        //             [slice.0, 1.0],
+                        //             [slice.0, 0.0],
+                        //             [slice.0, -1.0],
+                        //         ]),
+                        //     )
+                        //     .name(format!("{:.4}", slice.1)),
+                        // );
+
+                        let start = slice.0;
+                        let end = slices.get(i + 1).map(|e| e.0).unwrap_or(self.b);
+
+                        ui.span(Span::new(format!("{:.4}", slice.1), start..=end));
+                    }
+
+                    ui.line(
+                        Line::new("func", PlotPoints::from_explicit_callback(func, .., 100))
+                            .name(format!("{:.4}", slices.iter().map(|e| e.1).sum::<f64>())),
+                    );
+                });
         });
     }
 }
 
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+enum Algorithm {
+    Trapezoidal,
+    Simpson,
+}
+
+impl Algorithm {
+    fn text(&self) -> &'static str {
+        match self {
+            Algorithm::Trapezoidal => "Trapezoidal",
+            Algorithm::Simpson => "Simpson",
+        }
+    }
+
+    fn eval(&self, a: f64, b: f64, f: impl Fn(f64) -> f64) -> Vec<(f64, f64)> {
+        let woof = |co: &[f64], all_co: f64| -> Vec<_> {
+            let n = co.len() as f64;
+            co.iter()
+                .enumerate()
+                .map(|(i, &co)| {
+                    let i = i as f64;
+                    let h = (b - a) / n;
+                    (a + i * h, all_co * h * f(a + i * h) * co)
+                })
+                .collect()
+        };
+
+        match self {
+            Algorithm::Trapezoidal => woof(&[1.0, 1.0], 0.5),
+
+            Algorithm::Simpson => woof(&[1.0, 4.0, 1.0], 1.0 / 1.3),
+        }
+    }
 }
