@@ -1,5 +1,5 @@
 use egui::{CentralPanel, Color32, ComboBox, MenuBar, Panel, widgets};
-use egui_plot::{Legend, Line, Plot, PlotPoint, PlotPoints};
+use egui_plot::{Legend, Line, Plot, PlotPoints, Points};
 use meval::Expr;
 use serde::{Deserialize, Serialize};
 
@@ -85,8 +85,7 @@ impl eframe::App for App {
         });
 
         CentralPanel::default().show_inside(ui, |ui| {
-            let mut circles = Vec::new();
-            let response = Plot::new("central_plot")
+            Plot::new("central_plot")
                 .legend(Legend::default())
                 .data_aspect(1.0)
                 .show(ui, |ui| {
@@ -98,28 +97,27 @@ impl eframe::App for App {
                         return;
                     };
 
-                    let slices =
-                        self.selected
-                            .eval(self.a, self.b, expr.clone().bind("x").unwrap());
+                    let slices = self.selected.eval(self.a, self.b, func);
 
-                    for slice in &slices {
-                        circles.push(egui::Shape::circle_filled(
-                            ui.screen_from_plot(PlotPoint::new(slice[0], func(slice[0]))),
-                            10.0, // set radius of special points to be visible
-                            Color32::ORANGE,
-                        ));
-                    }
+                    let func = expr.clone().bind("x").unwrap();
 
                     ui.line(
-                        Line::new("func", PlotPoints::from_explicit_callback(func, .., 100))
-                            .name(format!("{:.4}", slices.iter().map(|e| e[1]).sum::<f64>())),
+                        Line::new("func", PlotPoints::from_explicit_callback(func, .., 100)).name(
+                            format!("f = {:.4}", slices.iter().map(|e| e[1]).sum::<f64>()),
+                        ),
                     );
-                })
-                .response;
-            response
-                .ctx
-                .layer_painter(response.layer_id)
-                .extend(circles);
+
+                    let func = expr.clone().bind("x").unwrap();
+
+                    for (i, &[x, a]) in slices.iter().enumerate() {
+                        ui.points(
+                            Points::new(format!("marker_{}", i), [x, func(x)])
+                                .name(format!("p{i} = {a:.4}"))
+                                .filled(true)
+                                .radius(10.0),
+                        );
+                    }
+                });
         });
     }
 }
@@ -153,7 +151,6 @@ impl Algorithm {
 
         match self {
             Algorithm::Trapezoidal => newton(&[1.0, 1.0], 0.5),
-
             Algorithm::Simpson => newton(&[1.0, 4.0, 1.0], 1.0 / 1.3),
         }
     }
