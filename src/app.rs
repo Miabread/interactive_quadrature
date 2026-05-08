@@ -1,4 +1,4 @@
-use egui::{CentralPanel, Color32, ComboBox, MenuBar, Panel, widgets};
+use egui::{CentralPanel, ComboBox, MenuBar, Panel, widgets};
 use egui_plot::{Legend, Line, Plot, PlotPoints, Points};
 use meval::Expr;
 use serde::{Deserialize, Serialize};
@@ -76,8 +76,7 @@ impl eframe::App for App {
             ComboBox::from_label("Algorithm")
                 .selected_text(self.selected.text())
                 .show_ui(ui, |ui| {
-                    use Algorithm::*;
-                    for algo in [Trapezoidal, Simpson] {
+                    for algo in Algorithm::VARIANTS {
                         let text = algo.text();
                         ui.selectable_value(&mut self.selected, algo, text);
                     }
@@ -103,7 +102,7 @@ impl eframe::App for App {
 
                     ui.line(
                         Line::new("func", PlotPoints::from_explicit_callback(func, .., 100)).name(
-                            format!("f = {:.4}", slices.iter().map(|e| e[1]).sum::<f64>()),
+                            format!("f = {:.17}", slices.iter().map(|e| e[1]).sum::<f64>()),
                         ),
                     );
 
@@ -112,7 +111,7 @@ impl eframe::App for App {
                     for (i, &[x, a]) in slices.iter().enumerate() {
                         ui.points(
                             Points::new(format!("marker_{}", i), [x, func(x)])
-                                .name(format!("p{i} = {a:.4}"))
+                                .name(format!("p{i} = {a:.17}"))
                                 .filled(true)
                                 .radius(10.0),
                         );
@@ -126,18 +125,35 @@ impl eframe::App for App {
 enum Algorithm {
     Trapezoidal,
     Simpson,
+    NewtonCotes3,
+    NewtonCotes4,
+    NewtonCotes5,
+    NewtonCotes6,
 }
 
 impl Algorithm {
+    const VARIANTS: [Algorithm; 6] = [
+        Algorithm::Trapezoidal,
+        Algorithm::Simpson,
+        Algorithm::NewtonCotes3,
+        Algorithm::NewtonCotes4,
+        Algorithm::NewtonCotes5,
+        Algorithm::NewtonCotes6,
+    ];
+
     fn text(&self) -> &'static str {
         match self {
             Algorithm::Trapezoidal => "Trapezoidal",
             Algorithm::Simpson => "Simpson",
+            Algorithm::NewtonCotes3 => "Newton-Cotes n = 3",
+            Algorithm::NewtonCotes4 => "Newton-Cotes n = 4",
+            Algorithm::NewtonCotes5 => "Newton-Cotes n = 5",
+            Algorithm::NewtonCotes6 => "Newton-Cotes n = 6",
         }
     }
 
     fn eval(&self, a: f64, b: f64, f: impl Fn(f64) -> f64) -> Vec<[f64; 2]> {
-        let newton = |co: &[f64], all_co: f64| -> Vec<_> {
+        let newton_cotes = |co: &[f64], all_co: f64| -> Vec<_> {
             let n = co.len() as f64 - 1.0;
             co.iter()
                 .enumerate()
@@ -150,8 +166,16 @@ impl Algorithm {
         };
 
         match self {
-            Algorithm::Trapezoidal => newton(&[1.0, 1.0], 0.5),
-            Algorithm::Simpson => newton(&[1.0, 4.0, 1.0], 1.0 / 1.3),
+            Algorithm::Trapezoidal => newton_cotes(&[1.0, 1.0], 0.5),
+            Algorithm::Simpson => newton_cotes(&[1.0, 4.0, 1.0], 1.0 / 1.3),
+            Algorithm::NewtonCotes3 => newton_cotes(&[1.0, 3.0, 3.0, 1.0], 3.0 / 8.0),
+            Algorithm::NewtonCotes4 => newton_cotes(&[7.0, 32.0, 12.0, 32.0, 7.0], 2.0 / 45.0),
+            Algorithm::NewtonCotes5 => {
+                newton_cotes(&[19.0, 75.0, 50.0, 50.0, 75.0, 19.0], 5.0 / 288.0)
+            }
+            Algorithm::NewtonCotes6 => {
+                newton_cotes(&[41.0, 216.0, 27.0, 272.0, 27.0, 216.0, 41.0], 1.0 / 140.0)
+            }
         }
     }
 }
