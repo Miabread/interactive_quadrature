@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
     expr: String,
-    a: f64,
-    b: f64,
+    endpoints: Endpoints,
     selected_algo: Algorithm,
     newton_cotes_n: usize,
 }
@@ -18,8 +17,10 @@ impl Default for App {
     fn default() -> Self {
         Self {
             expr: "x^2".to_owned(),
-            a: -1.0,
-            b: 1.0,
+            endpoints: Endpoints {
+                start: -1.0,
+                end: 1.0,
+            },
             selected_algo: Algorithm::NewtonCotes,
             newton_cotes_n: 1,
         }
@@ -69,10 +70,10 @@ impl eframe::App for App {
             });
 
             ui.horizontal(|ui| {
-                ui.label("a: ");
-                ui.add(egui::DragValue::new(&mut self.a).speed(0.1));
-                ui.label("b: ");
-                ui.add(egui::DragValue::new(&mut self.b).speed(0.1));
+                ui.label("Start: ");
+                ui.add(egui::DragValue::new(&mut self.endpoints.start).speed(0.1));
+                ui.label("End: ");
+                ui.add(egui::DragValue::new(&mut self.endpoints.end).speed(0.1));
             });
 
             ComboBox::from_label("Algorithm")
@@ -130,6 +131,12 @@ impl eframe::App for App {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+struct Endpoints {
+    start: f64,
+    end: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 struct InterpolationPoint {
     x: f64,
     y: f64,
@@ -159,7 +166,11 @@ impl Algorithm {
         (1.0 / 140.0, &[41.0, 216.0, 27.0, 272.0, 27.0, 216.0, 41.0]),
     ];
 
-    fn newton_cotes(app: &App, func: impl Fn(f64) -> f64) -> Vec<InterpolationPoint> {
+    fn newton_cotes(
+        app: &App,
+        endpoints: Endpoints,
+        func: impl Fn(f64) -> f64,
+    ) -> Vec<InterpolationPoint> {
         let (factor, weights) = Self::NEWTON_COTES_COEFFICIENTS[app.newton_cotes_n - 1];
         let n = app.newton_cotes_n as f64;
 
@@ -168,9 +179,9 @@ impl Algorithm {
             .enumerate()
             .map(|(i, &weight)| {
                 let i = i as f64;
-                let step_h = (app.b - app.a) / n;
+                let step_h = (endpoints.end - endpoints.start) / n;
 
-                let x = app.a + i * step_h;
+                let x = endpoints.start + i * step_h;
                 let y = func(x);
                 let area = factor * step_h * y * weight;
 
@@ -181,7 +192,7 @@ impl Algorithm {
 
     fn eval(&self, app: &App, func: impl Fn(f64) -> f64) -> Vec<InterpolationPoint> {
         match self {
-            Algorithm::NewtonCotes => Self::newton_cotes(app, func),
+            Algorithm::NewtonCotes => Self::newton_cotes(app, app.endpoints, func),
         }
     }
 }
