@@ -19,15 +19,17 @@ pub struct InterpolationPoint {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Algorithm {
-    NewtonCotes,
+    ClosedNewtonCotes,
+    OpenNewtonCotes,
 }
 
 impl Algorithm {
-    pub const VARIANTS: &[Algorithm] = &[Algorithm::NewtonCotes];
+    pub const VARIANTS: &[Algorithm] = &[Algorithm::ClosedNewtonCotes, Algorithm::OpenNewtonCotes];
 
     pub fn text(&self) -> &'static str {
         match self {
-            Algorithm::NewtonCotes => "Newton-Cotes",
+            Algorithm::ClosedNewtonCotes => "Closed Newton-Cotes",
+            Algorithm::OpenNewtonCotes => "Open Newton-Cotes",
         }
     }
 }

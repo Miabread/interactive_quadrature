@@ -7,12 +7,13 @@ use crate::{Algorithm, Endpoints};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Deserialize, Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+// #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
     expr: String,
     pub endpoints: Endpoints,
     pub selected_algo: Algorithm,
-    pub newton_cotes_n: usize,
+    pub closed_newton_cotes_n: usize,
+    pub open_newton_cotes_n: usize,
 }
 
 impl Default for App {
@@ -23,8 +24,9 @@ impl Default for App {
                 start: -1.0,
                 end: 1.0,
             },
-            selected_algo: Algorithm::NewtonCotes,
-            newton_cotes_n: 1,
+            selected_algo: Algorithm::ClosedNewtonCotes,
+            closed_newton_cotes_n: *Self::CLOSED_NEWTON_COTES_N_RANGE.start(),
+            open_newton_cotes_n: *Self::OPEN_NEWTON_COTES_N_RANGE.start(),
         }
     }
 }
@@ -86,12 +88,22 @@ impl eframe::App for App {
                     }
                 });
 
-            if self.selected_algo == Algorithm::NewtonCotes {
+            if self.selected_algo == Algorithm::ClosedNewtonCotes {
                 ui.horizontal(|ui| {
                     ui.label("n: ");
                     ui.add(egui::Slider::new(
-                        &mut self.newton_cotes_n,
-                        1..=Self::NEWTON_COTES_COEFFICIENTS.len(),
+                        &mut self.closed_newton_cotes_n,
+                        Self::CLOSED_NEWTON_COTES_N_RANGE,
+                    ));
+                });
+            }
+
+            if self.selected_algo == Algorithm::OpenNewtonCotes {
+                ui.horizontal(|ui| {
+                    ui.label("n: ");
+                    ui.add(egui::Slider::new(
+                        &mut self.open_newton_cotes_n,
+                        Self::OPEN_NEWTON_COTES_N_RANGE,
                     ));
                 });
             }

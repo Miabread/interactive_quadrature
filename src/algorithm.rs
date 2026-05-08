@@ -1,19 +1,23 @@
+use std::ops::RangeInclusive;
+
 use crate::{Algorithm, App, Endpoints, InterpolationPoint};
 
 impl App {
     pub fn eval(&self, func: impl Fn(f64) -> f64) -> Vec<InterpolationPoint> {
         match self.selected_algo {
-            Algorithm::NewtonCotes => self.newton_cotes(self.endpoints, func),
+            Algorithm::ClosedNewtonCotes => self.closed_newton_cotes(self.endpoints, func),
+            Algorithm::OpenNewtonCotes => self.open_newton_cotes(self.endpoints, func),
         }
     }
 
-    fn newton_cotes(
+    fn closed_newton_cotes(
         &self,
         endpoints: Endpoints,
         func: impl Fn(f64) -> f64,
     ) -> Vec<InterpolationPoint> {
-        let (factor, weights) = Self::NEWTON_COTES_COEFFICIENTS[self.newton_cotes_n - 1];
-        let n = self.newton_cotes_n as f64;
+        let (factor, weights) =
+            Self::CLOSED_NEWTON_COTES_COEFFICIENTS[self.closed_newton_cotes_n - 1];
+        let n = self.closed_newton_cotes_n as f64;
 
         weights
             .iter()
@@ -31,12 +35,49 @@ impl App {
             .collect()
     }
 
-    pub const NEWTON_COTES_COEFFICIENTS: &[(f64, &[f64])] = &[
+    fn open_newton_cotes(
+        &self,
+        endpoints: Endpoints,
+        func: impl Fn(f64) -> f64,
+    ) -> Vec<InterpolationPoint> {
+        let (factor, weights) = Self::OPEN_NEWTON_COTES_COEFFICIENTS[self.open_newton_cotes_n];
+        let n = self.open_newton_cotes_n as f64;
+
+        weights
+            .iter()
+            .enumerate()
+            .map(|(i, &weight)| {
+                let i = i as f64;
+                let step_h = (endpoints.end - endpoints.start) / (n + 2.0);
+
+                let x = endpoints.start + (i + 1.0) * step_h;
+                let y = func(x);
+                let area = factor * step_h * y * weight;
+
+                InterpolationPoint { x, y, area }
+            })
+            .collect()
+    }
+
+    pub const CLOSED_NEWTON_COTES_N_RANGE: RangeInclusive<usize> =
+        1..=Self::CLOSED_NEWTON_COTES_COEFFICIENTS.len();
+
+    pub const CLOSED_NEWTON_COTES_COEFFICIENTS: &[(f64, &[f64])] = &[
         (1.0 / 2.0, &[1.0, 1.0]),
         (1.0 / 1.3, &[1.0, 4.0, 1.0]),
         (3.0 / 8.0, &[1.0, 3.0, 3.0, 1.0]),
         (2.0 / 45.0, &[7.0, 32.0, 12.0, 32.0, 7.0]),
         (5.0 / 288.0, &[19.0, 75.0, 50.0, 50.0, 75.0, 19.0]),
         (1.0 / 140.0, &[41.0, 216.0, 27.0, 272.0, 27.0, 216.0, 41.0]),
+    ];
+
+    pub const OPEN_NEWTON_COTES_N_RANGE: RangeInclusive<usize> =
+        0..=(Self::OPEN_NEWTON_COTES_COEFFICIENTS.len() - 1);
+
+    pub const OPEN_NEWTON_COTES_COEFFICIENTS: &[(f64, &[f64])] = &[
+        (2.0, &[1.0]),
+        (3.0 / 2.0, &[1.0, 1.0]),
+        (4.0 / 3.0, &[2.0, -1.0, 2.0]),
+        (5.0 / 24.0, &[11.0, 1.0, 1.0, 11.0]),
     ];
 }
