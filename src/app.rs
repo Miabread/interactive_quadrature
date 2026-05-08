@@ -1,4 +1,4 @@
-use egui::{CentralPanel, ComboBox, MenuBar, Panel, widgets};
+use egui::{CentralPanel, Color32, ComboBox, Panel, Visuals};
 use egui_plot::{Legend, Line, Plot, PlotPoints, Points};
 use meval::Expr;
 use serde::{Deserialize, Serialize};
@@ -37,6 +37,8 @@ impl App {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
+        cc.egui_ctx.set_visuals(Visuals::dark());
+
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
@@ -57,12 +59,6 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        Panel::top("top_panel").show_inside(ui, |ui| {
-            MenuBar::new().ui(ui, |ui| {
-                widgets::global_theme_preference_buttons(ui);
-            });
-        });
 
         Panel::left("left_panel").show_inside(ui, |ui| {
             ui.heading("Interactive Quadrature");
@@ -123,12 +119,28 @@ impl eframe::App for App {
                     };
 
                     let slices = self.eval(func);
+
                     let func = expr.clone().bind("x").unwrap();
                     let sum = slices.iter().map(|point| point.area).sum::<f64>();
+                    ui.points(
+                        Points::new(
+                            "integral",
+                            PlotPoints::from_explicit_callback(
+                                func,
+                                self.endpoints.start..=self.endpoints.end,
+                                100,
+                            ),
+                        )
+                        .stems(0.0)
+                        .color(Color32::WHITE)
+                        .name(format!("f = {:.17}", sum)),
+                    );
 
+                    let func = expr.clone().bind("x").unwrap();
                     ui.line(
                         Line::new("func", PlotPoints::from_explicit_callback(func, .., 100))
-                            .name(format!("f = {:.17}", sum)),
+                            .name("")
+                            .width(3.0),
                     );
 
                     for (i, point) in slices.iter().enumerate() {
