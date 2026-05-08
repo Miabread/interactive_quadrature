@@ -1,4 +1,4 @@
-use egui::{CentralPanel, Color32, ComboBox, Panel, Visuals};
+use egui::{CentralPanel, ComboBox, Panel, Visuals};
 use egui_plot::{Legend, Line, Plot, PlotPoints, Points};
 use meval::Expr;
 use serde::{Deserialize, Serialize};
@@ -107,7 +107,7 @@ impl eframe::App for App {
 
         CentralPanel::default().show_inside(ui, |ui| {
             Plot::new("central_plot")
-                .legend(Legend::default())
+                .legend(Legend::default().text_style(egui::TextStyle::Monospace))
                 .data_aspect(1.0)
                 .show(ui, |ui| {
                     let Ok(expr) = self.expr.parse::<Expr>() else {
@@ -119,35 +119,27 @@ impl eframe::App for App {
                     };
 
                     let slices = self.eval(func);
+                    let sum = slices.iter().map(|point| point.area).sum::<f64>();
 
                     let func = expr.clone().bind("x").unwrap();
-                    let sum = slices.iter().map(|point| point.area).sum::<f64>();
-                    ui.points(
-                        Points::new(
-                            "integral",
+                    ui.line(
+                        Line::new(
+                            "func",
                             PlotPoints::from_explicit_callback(
                                 func,
                                 self.endpoints.start..=self.endpoints.end,
                                 100,
                             ),
                         )
-                        .stems(0.0)
-                        .color(Color32::WHITE)
-                        .name(format!("f = {:.17}", sum)),
-                    );
-
-                    let func = expr.clone().bind("x").unwrap();
-                    ui.line(
-                        Line::new("func", PlotPoints::from_explicit_callback(func, .., 100))
-                            .name("")
-                            .width(3.0),
+                        .name(format!("f = {:+.17}", sum))
+                        .fill(0.0)
+                        .fill_alpha(0.25),
                     );
 
                     for (i, point) in slices.iter().enumerate() {
                         ui.points(
                             Points::new(format!("marker_{}", i), [point.x, point.y])
-                                .name(format!("p{i} = {:.17}", point.area))
-                                .filled(true)
+                                .name(format!("p{i} = {:+.17}", point.area))
                                 .radius(10.0),
                         );
                     }
