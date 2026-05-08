@@ -11,6 +11,7 @@ pub struct App {
     a: f64,
     b: f64,
     selected: Algorithm,
+    newton_cotes_n: usize,
 }
 
 impl Default for App {
@@ -20,6 +21,7 @@ impl Default for App {
             a: -1.0,
             b: 1.0,
             selected: Algorithm::Trapezoidal,
+            newton_cotes_n: 1,
         }
     }
 }
@@ -96,22 +98,19 @@ impl eframe::App for App {
                         return;
                     };
 
-                    let slices = self.selected.eval(self.a, self.b, func);
-
+                    let slices = self.selected.eval(self, func);
                     let func = expr.clone().bind("x").unwrap();
+                    let sum = slices.iter().map(|point| point.area).sum::<f64>();
 
                     ui.line(
-                        Line::new("func", PlotPoints::from_explicit_callback(func, .., 100)).name(
-                            format!("f = {:.17}", slices.iter().map(|e| e[1]).sum::<f64>()),
-                        ),
+                        Line::new("func", PlotPoints::from_explicit_callback(func, .., 100))
+                            .name(format!("f = {:.17}", sum)),
                     );
 
-                    let func = expr.clone().bind("x").unwrap();
-
-                    for (i, &[x, a]) in slices.iter().enumerate() {
+                    for (i, point) in slices.iter().enumerate() {
                         ui.points(
-                            Points::new(format!("marker_{}", i), [x, func(x)])
-                                .name(format!("p{i} = {a:.17}"))
+                            Points::new(format!("marker_{}", i), [point.x, point.y])
+                                .name(format!("p{i} = {:.17}", point.area))
                                 .filled(true)
                                 .radius(10.0),
                         );
@@ -119,6 +118,13 @@ impl eframe::App for App {
                 });
         });
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+struct InterpolationPoint {
+    x: f64,
+    y: f64,
+    area: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -152,30 +158,60 @@ impl Algorithm {
         }
     }
 
-    fn eval(&self, a: f64, b: f64, f: impl Fn(f64) -> f64) -> Vec<[f64; 2]> {
-        let newton_cotes = |co: &[f64], all_co: f64| -> Vec<_> {
-            let n = co.len() as f64 - 1.0;
-            co.iter()
-                .enumerate()
-                .map(|(i, &co)| {
-                    let i = i as f64;
-                    let h = (b - a) / n;
-                    [a + i * h, all_co * h * f(a + i * h) * co]
-                })
-                .collect()
+    const NEWTON_COTES_COEFFICIENTS: &[(f64, &[f64])] = &[
+        (1.0 / 2.0, &[1.0, 1.0]),
+        (1.0 / 1.3, &[1.0, 4.0, 1.0]),
+        (3.0 / 8.0, &[1.0, 3.0, 3.0, 1.0]),
+        (2.0 / 45.0, &[7.0, 32.0, 12.0, 32.0, 7.0]),
+        (5.0 / 288.0, &[19.0, 75.0, 50.0, 50.0, 75.0, 19.0]),
+        (1.0 / 140.0, &[41.0, 216.0, 27.0, 272.0, 27.0, 216.0, 41.0]),
+        (3.0 / 10.0, &[11.0, 27.0, 27.0, 27.0, 27.0, 27.0, 11.0]),
+        (
+            720.0 / 751.0,
+            &[32.0, 117.0, 81.0, 169.0, 169.0, 81.0, 117.0, 32.0],
+        ),
+        (
+            4.0 / 14175.0,
+            &[
+                989.0, 5888.0, -928.0, 10496.0, -4540.0, 10496.0, -928.0, 5888.0, 989.0,
+            ],
+        ),
+    ];
+
+    fn newton_cotes(
+        app: &App,
+        func: impl Fn(f64) -> f64,
+        newton_cotes_n: usize,
+    ) -> Vec<InterpolationPoint> {
+        let (factor, weights) = Self::NEWTON_COTES_COEFFICIENTS[newton_cotes_n - 1];
+        let n = app.newton_cotes_n as f64;
+
+        weights
+            .iter()
+            .enumerate()
+            .map(|(i, &weight)| {
+                let i = i as f64;
+                let step_h = (app.b - app.a) / n;
+
+                let x = app.a + i * step_h;
+                let y = func(x);
+                let area = factor * step_h * y * weight;
+
+                InterpolationPoint { x, y, area }
+            })
+            .collect()
+    }
+
+    fn eval(&self, app: &App, func: impl Fn(f64) -> f64) -> Vec<InterpolationPoint> {
+        let newton_cotes_n = match self {
+            Algorithm::Trapezoidal => 1,
+            Algorithm::Simpson => 2,
+            Algorithm::NewtonCotes3 => 3,
+            Algorithm::NewtonCotes4 => 4,
+            Algorithm::NewtonCotes5 => 5,
+            Algorithm::NewtonCotes6 => 6,
         };
 
-        match self {
-            Algorithm::Trapezoidal => newton_cotes(&[1.0, 1.0], 0.5),
-            Algorithm::Simpson => newton_cotes(&[1.0, 4.0, 1.0], 1.0 / 1.3),
-            Algorithm::NewtonCotes3 => newton_cotes(&[1.0, 3.0, 3.0, 1.0], 3.0 / 8.0),
-            Algorithm::NewtonCotes4 => newton_cotes(&[7.0, 32.0, 12.0, 32.0, 7.0], 2.0 / 45.0),
-            Algorithm::NewtonCotes5 => {
-                newton_cotes(&[19.0, 75.0, 50.0, 50.0, 75.0, 19.0], 5.0 / 288.0)
-            }
-            Algorithm::NewtonCotes6 => {
-                newton_cotes(&[41.0, 216.0, 27.0, 272.0, 27.0, 216.0, 41.0], 1.0 / 140.0)
-            }
-        }
+        Self::newton_cotes(app, func, newton_cotes_n)
     }
 }
