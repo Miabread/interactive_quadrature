@@ -1,47 +1,19 @@
-use serde::{Deserialize, Serialize};
+use crate::{Algorithm, App, Endpoints, InterpolationPoint};
 
-use crate::App;
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Endpoints {
-    pub start: f64,
-    pub end: f64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct InterpolationPoint {
-    pub x: f64,
-    pub y: f64,
-    pub area: f64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum Algorithm {
-    NewtonCotes,
-}
-
-impl Algorithm {
-    pub const VARIANTS: &[Algorithm] = &[Algorithm::NewtonCotes];
-
-    pub fn text(&self) -> &'static str {
-        match self {
-            Algorithm::NewtonCotes => "Newton-Cotes",
-        }
-    }
-
-    pub fn eval(&self, app: &App, func: impl Fn(f64) -> f64) -> Vec<InterpolationPoint> {
-        match self {
-            Algorithm::NewtonCotes => Self::newton_cotes(app, app.endpoints, func),
+impl App {
+    pub fn eval(&self, func: impl Fn(f64) -> f64) -> Vec<InterpolationPoint> {
+        match self.selected_algo {
+            Algorithm::NewtonCotes => self.newton_cotes(self.endpoints, func),
         }
     }
 
     fn newton_cotes(
-        app: &App,
+        &self,
         endpoints: Endpoints,
         func: impl Fn(f64) -> f64,
     ) -> Vec<InterpolationPoint> {
-        let (factor, weights) = Self::NEWTON_COTES_COEFFICIENTS[app.newton_cotes_n - 1];
-        let n = app.newton_cotes_n as f64;
+        let (factor, weights) = Self::NEWTON_COTES_COEFFICIENTS[self.newton_cotes_n - 1];
+        let n = self.newton_cotes_n as f64;
 
         weights
             .iter()

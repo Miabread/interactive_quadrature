@@ -3,16 +3,15 @@ use egui_plot::{Legend, Line, Plot, PlotPoints, Points};
 use meval::Expr;
 use serde::{Deserialize, Serialize};
 
-use crate::algorithm::{Algorithm, Endpoints};
+use crate::{Algorithm, Endpoints};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Deserialize, Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
     expr: String,
-    selected_algo: Algorithm,
-
     pub endpoints: Endpoints,
+    pub selected_algo: Algorithm,
     pub newton_cotes_n: usize,
 }
 
@@ -92,7 +91,7 @@ impl eframe::App for App {
                     ui.label("n: ");
                     ui.add(egui::Slider::new(
                         &mut self.newton_cotes_n,
-                        1..=Algorithm::NEWTON_COTES_COEFFICIENTS.len(),
+                        1..=Self::NEWTON_COTES_COEFFICIENTS.len(),
                     ));
                 });
             }
@@ -111,7 +110,7 @@ impl eframe::App for App {
                         return;
                     };
 
-                    let slices = self.selected_algo.eval(self, func);
+                    let slices = self.eval(func);
                     let func = expr.clone().bind("x").unwrap();
                     let sum = slices.iter().map(|point| point.area).sum::<f64>();
 
