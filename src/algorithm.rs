@@ -1,5 +1,7 @@
 use std::ops::RangeInclusive;
 
+use gauss_quad::{GaussChebyshevFirstKind, GaussLegendre};
+
 use crate::{Algorithm, App, Endpoints, InterpolationPoint};
 
 impl App {
@@ -7,6 +9,19 @@ impl App {
         match self.selected_algo {
             Algorithm::ClosedNewtonCotes => self.closed_newton_cotes(self.endpoints, func),
             Algorithm::OpenNewtonCotes => self.open_newton_cotes(self.endpoints, func),
+
+            Algorithm::GaussLegendre => self.gauss(
+                self.endpoints,
+                func,
+                GaussLegendre::new(self.gauss_legendre_n.try_into().unwrap())
+                    .as_node_weight_pairs(),
+            ),
+            Algorithm::GaussChebyshev => self.gauss(
+                self.endpoints,
+                func,
+                GaussChebyshevFirstKind::new(self.gauss_legendre_n.try_into().unwrap())
+                    .as_node_weight_pairs(),
+            ),
         }
     }
 
@@ -59,6 +74,26 @@ impl App {
             .collect()
     }
 
+    fn gauss(
+        &self,
+        endpoints: Endpoints,
+        func: impl Fn(f64) -> f64,
+        pairs: &[(f64, f64)],
+    ) -> Vec<InterpolationPoint> {
+        let midpoint = (endpoints.end - endpoints.start) / 2.0;
+        let offset = (endpoints.end + endpoints.start) / 2.0;
+
+        pairs
+            .iter()
+            .map(|&(node, weight)| {
+                let x = offset + node * midpoint;
+                let y = func(x);
+                let area = y * weight * midpoint;
+                InterpolationPoint { x, y, area }
+            })
+            .collect()
+    }
+
     pub const CLOSED_NEWTON_COTES_N_RANGE: RangeInclusive<usize> =
         1..=Self::CLOSED_NEWTON_COTES_COEFFICIENTS.len();
 
@@ -80,4 +115,6 @@ impl App {
         (4.0 / 3.0, &[2.0, -1.0, 2.0]),
         (5.0 / 24.0, &[11.0, 1.0, 1.0, 11.0]),
     ];
+
+    pub const GAUSS_N_RANGE: RangeInclusive<usize> = 1..=10;
 }

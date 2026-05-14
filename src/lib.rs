@@ -21,15 +21,24 @@ pub struct InterpolationPoint {
 pub enum Algorithm {
     ClosedNewtonCotes,
     OpenNewtonCotes,
+    GaussLegendre,
+    GaussChebyshev,
 }
 
 impl Algorithm {
-    pub const VARIANTS: &[Algorithm] = &[Algorithm::ClosedNewtonCotes, Algorithm::OpenNewtonCotes];
+    pub const VARIANTS: &[Algorithm] = &[
+        Algorithm::ClosedNewtonCotes,
+        Algorithm::OpenNewtonCotes,
+        Algorithm::GaussLegendre,
+        Algorithm::GaussChebyshev,
+    ];
 
     pub fn text(&self) -> &'static str {
         match self {
             Algorithm::ClosedNewtonCotes => "Closed Newton-Cotes",
             Algorithm::OpenNewtonCotes => "Open Newton-Cotes",
+            Algorithm::GaussLegendre => "Gauss-Legendre",
+            Algorithm::GaussChebyshev => "Gauss-Chebyshev",
         }
     }
 }

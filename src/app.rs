@@ -12,8 +12,10 @@ pub struct App {
     expr: String,
     pub endpoints: Endpoints,
     pub selected_algo: Algorithm,
+
     pub closed_newton_cotes_n: usize,
     pub open_newton_cotes_n: usize,
+    pub gauss_legendre_n: usize,
 }
 
 impl Default for App {
@@ -25,8 +27,10 @@ impl Default for App {
                 end: 1.0,
             },
             selected_algo: Algorithm::ClosedNewtonCotes,
+
             closed_newton_cotes_n: *Self::CLOSED_NEWTON_COTES_N_RANGE.start(),
             open_newton_cotes_n: *Self::OPEN_NEWTON_COTES_N_RANGE.start(),
+            gauss_legendre_n: 2,
         }
     }
 }
@@ -84,25 +88,22 @@ impl eframe::App for App {
                     }
                 });
 
-            if self.selected_algo == Algorithm::ClosedNewtonCotes {
-                ui.horizontal(|ui| {
-                    ui.label("n: ");
-                    ui.add(egui::Slider::new(
+            ui.horizontal(|ui| {
+                ui.label("n: ");
+                match self.selected_algo {
+                    Algorithm::ClosedNewtonCotes => ui.add(egui::Slider::new(
                         &mut self.closed_newton_cotes_n,
                         Self::CLOSED_NEWTON_COTES_N_RANGE,
-                    ));
-                });
-            }
-
-            if self.selected_algo == Algorithm::OpenNewtonCotes {
-                ui.horizontal(|ui| {
-                    ui.label("n: ");
-                    ui.add(egui::Slider::new(
+                    )),
+                    Algorithm::OpenNewtonCotes => ui.add(egui::Slider::new(
                         &mut self.open_newton_cotes_n,
                         Self::OPEN_NEWTON_COTES_N_RANGE,
-                    ));
-                });
-            }
+                    )),
+                    Algorithm::GaussLegendre | Algorithm::GaussChebyshev => ui.add(
+                        egui::Slider::new(&mut self.gauss_legendre_n, Self::GAUSS_N_RANGE),
+                    ),
+                }
+            });
         });
 
         CentralPanel::default().show_inside(ui, |ui| {
@@ -139,7 +140,7 @@ impl eframe::App for App {
                     for (i, point) in slices.iter().enumerate() {
                         ui.points(
                             Points::new(format!("marker_{}", i), [point.x, point.y])
-                                .name(format!("p{i} = {:+.17}", point.area))
+                                .name(format!("p{i:02} = {:+.17}", point.area))
                                 .radius(10.0),
                         );
                     }
