@@ -1,6 +1,7 @@
 use egui::{CentralPanel, ComboBox, Panel, Visuals};
 use egui_plot::{Legend, Line, Plot, PlotPoints, Points};
-use meval::Expr;
+use formulac::Builder;
+use num_complex::Complex;
 use serde::{Deserialize, Serialize};
 
 use crate::{Algorithm, Endpoints};
@@ -9,7 +10,7 @@ use crate::{Algorithm, Endpoints};
 #[derive(Deserialize, Serialize)]
 // #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
-    expr: String,
+    pub expr: String,
     pub endpoints: Endpoints,
     pub selected_algo: Algorithm,
 
@@ -111,23 +112,22 @@ impl eframe::App for App {
                 .legend(Legend::default().text_style(egui::TextStyle::Monospace))
                 .data_aspect(1.0)
                 .show(ui, |ui| {
-                    let Ok(expr) = self.expr.parse::<Expr>() else {
+                    let Ok(slices) = self.eval() else {
                         return;
                     };
 
-                    let Ok(func) = expr.clone().bind("x") else {
-                        return;
-                    };
-
-                    let slices = self.eval(func);
                     let sum = slices.iter().map(|point| point.area).sum::<f64>();
 
-                    let func = expr.clone().bind("x").unwrap();
                     ui.line(
                         Line::new(
                             "func",
                             PlotPoints::from_explicit_callback(
-                                func,
+                                {
+                                    let func = Builder::<f64, 1>::new(&self.expr, ["x"])
+                                        .compile()
+                                        .expect("expr passed through eval earlier");
+                                    move |x| func([Complex::new(x, 0.0)]).re
+                                },
                                 self.endpoints.start..=self.endpoints.end,
                                 100,
                             ),

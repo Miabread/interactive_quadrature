@@ -1,24 +1,24 @@
 use std::ops::RangeInclusive;
 
+use formulac::{Builder, err::ParseError};
 use gauss_quad::{GaussChebyshevFirstKind, GaussLegendre};
+use num_complex::Complex;
 
 use crate::{Algorithm, App, Endpoints, InterpolationPoint};
 
 impl App {
-    pub fn eval(&self, func: impl Fn(f64) -> f64) -> Vec<InterpolationPoint> {
+    pub fn eval(&self) -> Result<Vec<InterpolationPoint>, ParseError> {
         match self.selected_algo {
-            Algorithm::ClosedNewtonCotes => self.closed_newton_cotes(self.endpoints, func),
-            Algorithm::OpenNewtonCotes => self.open_newton_cotes(self.endpoints, func),
+            Algorithm::ClosedNewtonCotes => self.closed_newton_cotes(self.endpoints),
+            Algorithm::OpenNewtonCotes => self.open_newton_cotes(self.endpoints),
 
             Algorithm::GaussLegendre => self.gauss(
                 self.endpoints,
-                func,
                 GaussLegendre::new(self.gauss_legendre_n.try_into().unwrap())
                     .as_node_weight_pairs(),
             ),
             Algorithm::GaussChebyshev => self.gauss(
                 self.endpoints,
-                func,
                 GaussChebyshevFirstKind::new(self.gauss_legendre_n.try_into().unwrap())
                     .as_node_weight_pairs(),
             ),
@@ -28,13 +28,14 @@ impl App {
     fn closed_newton_cotes(
         &self,
         endpoints: Endpoints,
-        func: impl Fn(f64) -> f64,
-    ) -> Vec<InterpolationPoint> {
+    ) -> Result<Vec<InterpolationPoint>, ParseError> {
+        let func = Builder::<f64, 1>::new(&self.expr, ["x"]).compile()?;
+
         let (factor, weights) =
             Self::CLOSED_NEWTON_COTES_COEFFICIENTS[self.closed_newton_cotes_n - 1];
         let n = self.closed_newton_cotes_n as f64;
 
-        weights
+        Ok(weights
             .iter()
             .enumerate()
             .map(|(i, &weight)| {
@@ -42,56 +43,58 @@ impl App {
                 let step_h = (endpoints.end - endpoints.start) / n;
 
                 let x = endpoints.start + i * step_h;
-                let y = func(x);
+                let y = func([Complex::new(x, 0.0)]).re;
                 let area = factor * step_h * y * weight;
 
                 InterpolationPoint { x, y, area }
             })
-            .collect()
+            .collect())
     }
 
     fn open_newton_cotes(
         &self,
         endpoints: Endpoints,
-        func: impl Fn(f64) -> f64,
-    ) -> Vec<InterpolationPoint> {
+    ) -> Result<Vec<InterpolationPoint>, ParseError> {
+        let func = Builder::<f64, 1>::new(&self.expr, ["x"]).compile()?;
+
         let (factor, weights) = Self::OPEN_NEWTON_COTES_COEFFICIENTS[self.open_newton_cotes_n];
         let n = self.open_newton_cotes_n as f64;
+        let step_h = (endpoints.end - endpoints.start) / (n + 2.0);
 
-        weights
+        Ok(weights
             .iter()
             .enumerate()
-            .map(|(i, &weight)| {
-                let i = i as f64;
-                let step_h = (endpoints.end - endpoints.start) / (n + 2.0);
+            .map(|(node, &weight)| {
+                let node = node as f64;
 
-                let x = endpoints.start + (i + 1.0) * step_h;
-                let y = func(x);
+                let x = endpoints.start + (node + 1.0) * step_h;
+                let y = func([Complex::new(x, 0.0)]).re;
                 let area = factor * step_h * y * weight;
 
                 InterpolationPoint { x, y, area }
             })
-            .collect()
+            .collect())
     }
 
     fn gauss(
         &self,
         endpoints: Endpoints,
-        func: impl Fn(f64) -> f64,
         pairs: &[(f64, f64)],
-    ) -> Vec<InterpolationPoint> {
+    ) -> Result<Vec<InterpolationPoint>, ParseError> {
+        let func = Builder::<f64, 1>::new(&self.expr, ["x"]).compile()?;
+
         let midpoint = (endpoints.end - endpoints.start) / 2.0;
         let offset = (endpoints.end + endpoints.start) / 2.0;
 
-        pairs
+        Ok(pairs
             .iter()
             .map(|&(node, weight)| {
                 let x = offset + node * midpoint;
-                let y = func(x);
+                let y = func([Complex::new(x, 0.0)]).re;
                 let area = y * weight * midpoint;
                 InterpolationPoint { x, y, area }
             })
-            .collect()
+            .collect())
     }
 
     pub const CLOSED_NEWTON_COTES_N_RANGE: RangeInclusive<usize> =
