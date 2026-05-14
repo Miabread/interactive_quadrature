@@ -11,9 +11,43 @@ impl App {
     pub fn eval_repetition(&self, endpoints: Endpoints) -> Result<QuadOutput, ParseError> {
         match self.selected_rep {
             Repetition::Single => self.eval_algorithm(endpoints),
-            Repetition::Compound => self.eval_algorithm(endpoints),
-            Repetition::Adaptive => self.eval_algorithm(endpoints),
+            Repetition::Adaptive => self.adaptive(endpoints, self.adaptive_tolerance, 0),
         }
+    }
+
+    pub fn adaptive(
+        &self,
+        endpoints: Endpoints,
+        tolerance: f64,
+        iteration: usize,
+    ) -> Result<QuadOutput, ParseError> {
+        let output = self.eval_algorithm(endpoints)?;
+
+        if iteration > 5 || output.error < tolerance {
+            return Ok(output);
+        }
+
+        let midpoint = (endpoints.start + endpoints.end) / 2.0;
+
+        let left = self.adaptive(
+            Endpoints {
+                start: endpoints.start,
+                end: midpoint,
+            },
+            tolerance / 2.0,
+            iteration + 1,
+        )?;
+
+        let right = self.adaptive(
+            Endpoints {
+                start: midpoint,
+                end: endpoints.end,
+            },
+            tolerance / 2.0,
+            iteration + 1,
+        )?;
+
+        Ok(left.merge(right))
     }
 
     pub fn eval_algorithm(&self, endpoints: Endpoints) -> Result<QuadOutput, ParseError> {
@@ -58,7 +92,7 @@ impl App {
 
         let error = entry.error_factor
             * step_h.powf(entry.error_exponent)
-            * self.error_derivative_term(endpoints, entry.error_diff_order);
+            * self.error_derivative_term(endpoints, entry.error_diff_order)?;
 
         Ok(QuadOutput { points, error })
     }
@@ -87,7 +121,7 @@ impl App {
 
         let error = entry.error_factor
             * step_h.powf(entry.error_exponent)
-            * self.error_derivative_term(endpoints, entry.error_diff_order);
+            * self.error_derivative_term(endpoints, entry.error_diff_order)?;
 
         Ok(QuadOutput { points, error })
     }
@@ -119,12 +153,10 @@ impl App {
         Ok(QuadOutput { points, error })
     }
 
-    fn error_derivative_term(&self, endpoints: Endpoints, order: usize) -> f64 {
+    fn error_derivative_term(&self, endpoints: Endpoints, order: usize) -> Result<f64, ParseError> {
         let expr = format!("diff({}, x, {})", self.expr, order);
-        let func = Builder::<f64, 1>::new(&expr, ["x"])
-            .compile()
-            .expect("expr passed through eval earlier");
+        let func = Builder::<f64, 1>::new(&expr, ["x"]).compile()?;
         let xi = (endpoints.start + endpoints.end) / 2.0;
-        func([Complex::new(xi, 0.0)]).re
+        Ok(func([Complex::new(xi, 0.0)]).re)
     }
 }

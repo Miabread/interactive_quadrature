@@ -23,6 +23,20 @@ pub struct QuadOutput {
     pub error: f64,
 }
 
+impl QuadOutput {
+    pub fn result(&self) -> f64 {
+        self.points.iter().map(|point| point.area).sum()
+    }
+
+    pub fn merge(mut self, mut other: Self) -> Self {
+        self.points.append(&mut other.points);
+        Self {
+            points: self.points,
+            error: self.error.max(other.error),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Algorithm {
     ClosedNewtonCotes,
@@ -52,21 +66,15 @@ impl Algorithm {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Repetition {
     Single,
-    Compound,
     Adaptive,
 }
 
 impl Repetition {
-    pub const VARIANTS: &[Repetition] = &[
-        Repetition::Single,
-        Repetition::Compound,
-        Repetition::Adaptive,
-    ];
+    pub const VARIANTS: &[Repetition] = &[Repetition::Single, Repetition::Adaptive];
 
     pub fn text(&self) -> &'static str {
         match self {
             Repetition::Single => "Single",
-            Repetition::Compound => "Compound",
             Repetition::Adaptive => "Adaptive",
         }
     }

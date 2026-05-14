@@ -22,6 +22,7 @@ pub struct App {
     pub gauss_legendre_n: usize,
 
     pub selected_rep: Repetition,
+    pub adaptive_tolerance: f64,
 }
 
 impl Default for App {
@@ -39,6 +40,7 @@ impl Default for App {
             gauss_legendre_n: 2,
 
             selected_rep: Repetition::Single,
+            adaptive_tolerance: 1e-3,
         }
     }
 }
@@ -136,6 +138,13 @@ impl eframe::App for App {
                     }
                 });
 
+            if self.selected_rep == Repetition::Adaptive {
+                ui.horizontal(|ui| {
+                    ui.label("tolerance: ");
+                    ui.add(egui::DragValue::new(&mut self.adaptive_tolerance).speed(0.1));
+                });
+            }
+
             ui.add_space(spacing);
             ui.heading("Error");
             ui.separator();
@@ -158,23 +167,20 @@ impl eframe::App for App {
                         return;
                     };
 
-                    let sum = output.points.iter().map(|point| point.area).sum::<f64>();
+                    let Ok(func) = Builder::<f64, 1>::new(&self.expr, ["x"]).compile() else {
+                        return;
+                    };
 
                     ui.line(
                         Line::new(
                             "func",
                             PlotPoints::from_explicit_callback(
-                                {
-                                    let func = Builder::<f64, 1>::new(&self.expr, ["x"])
-                                        .compile()
-                                        .expect("expr passed through eval earlier");
-                                    move |x| func([Complex::new(x, 0.0)]).re
-                                },
+                                move |x| func([Complex::new(x, 0.0)]).re,
                                 self.endpoints.start..=self.endpoints.end,
                                 100,
                             ),
                         )
-                        .name(format!("f = {:+.17}", sum))
+                        .name(format!("f = {:+.17}", output.result()))
                         .fill(0.0)
                         .fill_alpha(0.25),
                     );
