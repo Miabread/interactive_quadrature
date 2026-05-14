@@ -31,6 +31,7 @@ impl App {
 
         let entry = CLOSED_NEWTON_COTES_COEFFICIENTS[self.closed_newton_cotes_n - 1];
         let n = self.closed_newton_cotes_n as f64;
+        let step_h = (endpoints.end - endpoints.start) / n;
 
         let points = entry
             .weights
@@ -38,7 +39,6 @@ impl App {
             .enumerate()
             .map(|(i, &weight)| {
                 let i = i as f64;
-                let step_h = (endpoints.end - endpoints.start) / n;
 
                 let x = endpoints.start + i * step_h;
                 let y = func([Complex::new(x, 0.0)]).re;
@@ -48,7 +48,11 @@ impl App {
             })
             .collect();
 
-        Ok(QuadOutput { points, error: 0.0 })
+        let error = entry.error_factor
+            * step_h.powf(entry.error_exponent)
+            * self.error_derivative_term(endpoints, entry.error_diff_order);
+
+        Ok(QuadOutput { points, error })
     }
 
     fn open_newton_cotes(&self, endpoints: Endpoints) -> Result<QuadOutput, ParseError> {
@@ -73,7 +77,11 @@ impl App {
             })
             .collect();
 
-        Ok(QuadOutput { points, error: 0.0 })
+        let error = entry.error_factor
+            * step_h.powf(entry.error_exponent)
+            * self.error_derivative_term(endpoints, entry.error_diff_order);
+
+        Ok(QuadOutput { points, error })
     }
 
     fn gauss(&self, endpoints: Endpoints, pairs: &[(f64, f64)]) -> Result<QuadOutput, ParseError> {
@@ -92,6 +100,23 @@ impl App {
             })
             .collect();
 
-        Ok(QuadOutput { points, error: 0.0 })
+        let n_i = self.gauss_legendre_n;
+        let n_f = n_i as f64;
+        let factorial = |n| (1..=n).map(|i| i as f64).product::<f64>();
+
+        let error = ((endpoints.end - endpoints.start).powf(2.0 * n_f + 1.0)
+            * factorial(n_i).powf(4.0))
+            / ((2.0 * n_f + 1.0) * factorial(2 * n_i).powf(3.0));
+
+        Ok(QuadOutput { points, error })
+    }
+
+    fn error_derivative_term(&self, endpoints: Endpoints, order: usize) -> f64 {
+        let expr = format!("diff({}, x, {})", self.expr, order);
+        let func = Builder::<f64, 1>::new(&expr, ["x"])
+            .compile()
+            .expect("expr passed through eval earlier");
+        let xi = (endpoints.start + endpoints.end) / 2.0;
+        func([Complex::new(xi, 0.0)]).re
     }
 }

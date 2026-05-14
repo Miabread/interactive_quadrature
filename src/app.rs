@@ -68,6 +68,8 @@ impl eframe::App for App {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
+        let output = self.eval();
+
         Panel::left("left_panel").show_inside(ui, |ui| {
             ui.heading("Interactive Quadrature");
             ui.spacing();
@@ -108,6 +110,12 @@ impl eframe::App for App {
                     }
                 }
             });
+
+            let Ok(output) = output.as_ref() else {
+                return;
+            };
+
+            ui.label(format!("error = {}", output.error));
         });
 
         CentralPanel::default().show_inside(ui, |ui| {
@@ -115,7 +123,7 @@ impl eframe::App for App {
                 .legend(Legend::default().text_style(egui::TextStyle::Monospace))
                 .data_aspect(1.0)
                 .show(ui, |ui| {
-                    let Ok(output) = self.eval() else {
+                    let Ok(output) = output else {
                         return;
                     };
 
