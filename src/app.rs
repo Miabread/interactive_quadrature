@@ -40,7 +40,7 @@ impl Default for App {
             gauss_legendre_n: 2,
 
             selected_rep: Repetition::Single,
-            adaptive_tolerance: 1e-3,
+            adaptive_tolerance: 0.001,
         }
     }
 }
@@ -176,7 +176,13 @@ impl eframe::App for App {
                             "func",
                             PlotPoints::from_explicit_callback(
                                 move |x| func([Complex::new(x, 0.0)]).re,
-                                self.endpoints.start..=self.endpoints.end,
+                                {
+                                    if self.endpoints.start <= self.endpoints.end {
+                                        self.endpoints.start..=self.endpoints.end
+                                    } else {
+                                        self.endpoints.end..=self.endpoints.start
+                                    }
+                                },
                                 100,
                             ),
                         )
