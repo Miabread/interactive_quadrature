@@ -48,3 +48,26 @@ impl Algorithm {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Repetition {
+    Single,
+    Compound,
+    Adaptive,
+}
+
+impl Repetition {
+    pub const VARIANTS: &[Repetition] = &[
+        Repetition::Single,
+        Repetition::Compound,
+        Repetition::Adaptive,
+    ];
+
+    pub fn text(&self) -> &'static str {
+        match self {
+            Repetition::Single => "Single",
+            Repetition::Compound => "Compound",
+            Repetition::Adaptive => "Adaptive",
+        }
+    }
+}

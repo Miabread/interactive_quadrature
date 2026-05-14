@@ -1,11 +1,11 @@
-use egui::{CentralPanel, ComboBox, Panel, Visuals};
+use egui::{CentralPanel, ComboBox, Panel, RichText, Visuals};
 use egui_plot::{Legend, Line, Plot, PlotPoints, Points};
 use formulac::Builder;
 use num_complex::Complex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Algorithm, Endpoints,
+    Algorithm, Endpoints, Repetition,
     constants::{CLOSED_NEWTON_COTES_N_RANGE, GAUSS_N_RANGE, OPEN_NEWTON_COTES_N_RANGE},
 };
 
@@ -15,11 +15,13 @@ use crate::{
 pub struct App {
     pub expr: String,
     pub endpoints: Endpoints,
-    pub selected_algo: Algorithm,
 
+    pub selected_algo: Algorithm,
     pub closed_newton_cotes_n: usize,
     pub open_newton_cotes_n: usize,
     pub gauss_legendre_n: usize,
+
+    pub selected_rep: Repetition,
 }
 
 impl Default for App {
@@ -30,11 +32,13 @@ impl Default for App {
                 start: -1.0,
                 end: 1.0,
             },
-            selected_algo: Algorithm::ClosedNewtonCotes,
 
+            selected_algo: Algorithm::ClosedNewtonCotes,
             closed_newton_cotes_n: *CLOSED_NEWTON_COTES_N_RANGE.start(),
             open_newton_cotes_n: *OPEN_NEWTON_COTES_N_RANGE.start(),
             gauss_legendre_n: 2,
+
+            selected_rep: Repetition::Single,
         }
     }
 }
@@ -68,11 +72,16 @@ impl eframe::App for App {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        let output = self.eval();
+        let spacing = 30.0;
+
+        let output = self.eval_repetition(self.endpoints);
 
         Panel::left("left_panel").show_inside(ui, |ui| {
             ui.heading("Interactive Quadrature");
-            ui.spacing();
+
+            ui.add_space(spacing);
+            ui.heading("Function");
+            ui.separator();
 
             ui.horizontal(|ui| {
                 ui.label("Expr: ");
@@ -86,7 +95,11 @@ impl eframe::App for App {
                 ui.add(egui::DragValue::new(&mut self.endpoints.end).speed(0.1));
             });
 
-            ComboBox::from_label("Algorithm")
+            ui.add_space(spacing);
+            ui.heading("Algorithm");
+            ui.separator();
+
+            ComboBox::from_id_salt("algorithm")
                 .selected_text(self.selected_algo.text())
                 .show_ui(ui, |ui| {
                     for &algo in Algorithm::VARIANTS {
@@ -111,11 +124,29 @@ impl eframe::App for App {
                 }
             });
 
+            ui.add_space(spacing);
+            ui.heading("Repetition");
+            ui.separator();
+
+            ComboBox::from_id_salt("repetition")
+                .selected_text(self.selected_rep.text())
+                .show_ui(ui, |ui| {
+                    for &rep in Repetition::VARIANTS {
+                        ui.selectable_value(&mut self.selected_rep, rep, rep.text());
+                    }
+                });
+
+            ui.add_space(spacing);
+            ui.heading("Error");
+            ui.separator();
+
             let Ok(output) = output.as_ref() else {
                 return;
             };
 
-            ui.label(format!("error = {}", output.error));
+            ui.label(
+                RichText::new(format!("{}", output.error)).text_style(egui::TextStyle::Monospace),
+            );
         });
 
         CentralPanel::default().show_inside(ui, |ui| {

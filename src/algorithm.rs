@@ -3,23 +3,31 @@ use gauss_quad::{GaussChebyshevFirstKind, GaussLegendre};
 use num_complex::Complex;
 
 use crate::{
-    Algorithm, App, Endpoints, InterpolationPoint, QuadOutput,
+    Algorithm, App, Endpoints, InterpolationPoint, QuadOutput, Repetition,
     constants::{CLOSED_NEWTON_COTES_COEFFICIENTS, OPEN_NEWTON_COTES_COEFFICIENTS},
 };
 
 impl App {
-    pub fn eval(&self) -> Result<QuadOutput, ParseError> {
+    pub fn eval_repetition(&self, endpoints: Endpoints) -> Result<QuadOutput, ParseError> {
+        match self.selected_rep {
+            Repetition::Single => self.eval_algorithm(endpoints),
+            Repetition::Compound => self.eval_algorithm(endpoints),
+            Repetition::Adaptive => self.eval_algorithm(endpoints),
+        }
+    }
+
+    pub fn eval_algorithm(&self, endpoints: Endpoints) -> Result<QuadOutput, ParseError> {
         match self.selected_algo {
-            Algorithm::ClosedNewtonCotes => self.closed_newton_cotes(self.endpoints),
-            Algorithm::OpenNewtonCotes => self.open_newton_cotes(self.endpoints),
+            Algorithm::ClosedNewtonCotes => self.closed_newton_cotes(endpoints),
+            Algorithm::OpenNewtonCotes => self.open_newton_cotes(endpoints),
 
             Algorithm::GaussLegendre => self.gauss(
-                self.endpoints,
+                endpoints,
                 GaussLegendre::new(self.gauss_legendre_n.try_into().unwrap())
                     .as_node_weight_pairs(),
             ),
             Algorithm::GaussChebyshev => self.gauss(
-                self.endpoints,
+                endpoints,
                 GaussChebyshevFirstKind::new(self.gauss_legendre_n.try_into().unwrap())
                     .as_node_weight_pairs(),
             ),
