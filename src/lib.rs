@@ -1,5 +1,6 @@
 mod algorithm;
 mod app;
+pub mod constants;
 pub use app::App;
 
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,11 @@ pub struct InterpolationPoint {
     pub x: f64,
     pub y: f64,
     pub area: f64,
+}
+
+pub struct QuadOutput {
+    pub points: Vec<InterpolationPoint>,
+    pub error: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

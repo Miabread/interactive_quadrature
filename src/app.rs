@@ -4,7 +4,10 @@ use formulac::Builder;
 use num_complex::Complex;
 use serde::{Deserialize, Serialize};
 
-use crate::{Algorithm, Endpoints};
+use crate::{
+    Algorithm, Endpoints,
+    constants::{CLOSED_NEWTON_COTES_N_RANGE, GAUSS_N_RANGE, OPEN_NEWTON_COTES_N_RANGE},
+};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Deserialize, Serialize)]
@@ -29,8 +32,8 @@ impl Default for App {
             },
             selected_algo: Algorithm::ClosedNewtonCotes,
 
-            closed_newton_cotes_n: *Self::CLOSED_NEWTON_COTES_N_RANGE.start(),
-            open_newton_cotes_n: *Self::OPEN_NEWTON_COTES_N_RANGE.start(),
+            closed_newton_cotes_n: *CLOSED_NEWTON_COTES_N_RANGE.start(),
+            open_newton_cotes_n: *OPEN_NEWTON_COTES_N_RANGE.start(),
             gauss_legendre_n: 2,
         }
     }
@@ -94,15 +97,15 @@ impl eframe::App for App {
                 match self.selected_algo {
                     Algorithm::ClosedNewtonCotes => ui.add(egui::Slider::new(
                         &mut self.closed_newton_cotes_n,
-                        Self::CLOSED_NEWTON_COTES_N_RANGE,
+                        CLOSED_NEWTON_COTES_N_RANGE,
                     )),
                     Algorithm::OpenNewtonCotes => ui.add(egui::Slider::new(
                         &mut self.open_newton_cotes_n,
-                        Self::OPEN_NEWTON_COTES_N_RANGE,
+                        OPEN_NEWTON_COTES_N_RANGE,
                     )),
-                    Algorithm::GaussLegendre | Algorithm::GaussChebyshev => ui.add(
-                        egui::Slider::new(&mut self.gauss_legendre_n, Self::GAUSS_N_RANGE),
-                    ),
+                    Algorithm::GaussLegendre | Algorithm::GaussChebyshev => {
+                        ui.add(egui::Slider::new(&mut self.gauss_legendre_n, GAUSS_N_RANGE))
+                    }
                 }
             });
         });
@@ -112,11 +115,11 @@ impl eframe::App for App {
                 .legend(Legend::default().text_style(egui::TextStyle::Monospace))
                 .data_aspect(1.0)
                 .show(ui, |ui| {
-                    let Ok(slices) = self.eval() else {
+                    let Ok(output) = self.eval() else {
                         return;
                     };
 
-                    let sum = slices.iter().map(|point| point.area).sum::<f64>();
+                    let sum = output.points.iter().map(|point| point.area).sum::<f64>();
 
                     ui.line(
                         Line::new(
@@ -137,7 +140,7 @@ impl eframe::App for App {
                         .fill_alpha(0.25),
                     );
 
-                    for (i, point) in slices.iter().enumerate() {
+                    for (i, point) in output.points.iter().enumerate() {
                         ui.points(
                             Points::new(format!("marker_{}", i), [point.x, point.y])
                                 .name(format!("p{i:02} = {:+.17}", point.area))
